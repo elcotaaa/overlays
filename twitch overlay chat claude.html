@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Overlay</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: transparent;
+    width: 400px;
+    min-height: 100vh;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 12px;
+  }
+
+  /* Scanline texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  #chat-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 520px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Fade out top messages */
+  #chat-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .message {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 10px 7px 8px;
+    background: rgba(5, 5, 15, 0.82);
+    border-left: 2px solid var(--user-color, #00ffe1);
+    position: relative;
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    backdrop-filter: blur(4px);
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+
+  /* Corner accent glow */
+  .message::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 8px; height: 8px;
+    background: var(--user-color, #00ffe1);
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+    opacity: 0.6;
+  }
+
+  .message::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(var(--user-rgb, 0,255,225), 0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-16px);
+      filter: brightness(2);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+      filter: brightness(1);
+    }
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #000;
+    background: var(--user-color, #00ffe1);
+    flex-shrink: 0;
+    letter-spacing: -0.5px;
+    position: relative;
+    text-transform: uppercase;
+  }
+
+  .avatar::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border: 1px solid var(--user-color, #00ffe1);
+    border-radius: 2px;
+    opacity: 0.3;
+  }
+
+  .content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .username {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--user-color, #00ffe1);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 1px;
+    text-shadow: 0 0 8px var(--user-color, #00ffe1);
+  }
+
+  .username .badge {
+    font-size: 8px;
+    padding: 1px 4px;
+    background: var(--user-color, #00ffe1);
+    color: #000;
+    border-radius: 1px;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+
+  .text {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(220, 230, 255, 0.9);
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .text .emote {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* Broadcaster special style */
+  .message.broadcaster {
+    border-left-color: #ff3c6e;
+    background: rgba(255, 60, 110, 0.08);
+  }
+
+  /* Sub notification */
+  .message.sub-alert {
+    border-left-color: #c97bff;
+    background: rgba(180, 100, 255, 0.1);
+    padding: 10px 10px 10px 8px;
+  }
+
+  .sub-alert .text {
+    color: #c97bff;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  /* Timestamp */
+  .timestamp {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.2);
+    align-self: flex-end;
+    flex-shrink: 0;
+    letter-spacing: 0.3px;
+  }
+
+  /* HEADER */
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: rgba(5, 5, 15, 0.9);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    border-top: 1px solid rgba(0,255,225,0.3);
+  }
+
+  #header .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #00ffe1;
+    box-shadow: 0 0 8px #00ffe1;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  #header .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: rgba(0,255,225,0.7);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  #header .count {
+    margin-left: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+  }
+
+  /* Glitch flicker on new message */
+  @keyframes glitch {
+    0% { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+    10% { clip-path: polygon(2px 0, calc(100% - 6px) 0, 100% 8px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); transform: translateX(1px); }
+    20% { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); transform: translateX(0); }
+    100% { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+  }
+
+  .message.new {
+    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+               glitch 0.4s steps(1) 0.3s;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="dot"></div>
+  <span class="label">Live Chat</span>
+  <span class="count" id="msg-count">0 msgs</span>
+</div>
+
+<div id="chat-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/build/tmi.min.js"></script>
+<script>
+// ── Color palette for users ──────────────────────────────
+const colors = [
+  { hex: '#00ffe1', rgb: '0,255,225' },
+  { hex: '#ff3c6e', rgb: '255,60,110' },
+  { hex: '#c97bff', rgb: '201,123,255' },
+  { hex: '#ffcf00', rgb: '255,207,0'  },
+  { hex: '#00cfff', rgb: '0,207,255'  },
+  { hex: '#ff8c42', rgb: '255,140,66' },
+  { hex: '#7bff72', rgb: '123,255,114'},
+];
+
+const userColorMap = {};
+let colorIndex = 0;
+
+function getUserColor(username) {
+  if (!userColorMap[username]) {
+    userColorMap[username] = colors[colorIndex % colors.length];
+    colorIndex++;
+  }
+  return userColorMap[username];
+}
+
+function getInitials(name) {
+  return name.slice(0, 2).toUpperCase();
+}
+
+function formatTime() {
+  const now = new Date();
+  return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+}
+
+let msgCount = 0;
+
+function addMessage({ username, text, badge = null, type = 'normal' }) {
+  const container = document.getElementById('chat-container');
+  const color = type === 'broadcaster'
+    ? { hex: '#ff3c6e', rgb: '255,60,110' }
+    : type === 'sub'
+    ? { hex: '#c97bff', rgb: '201,123,255' }
+    : getUserColor(username);
+
+  const msg = document.createElement('div');
+  msg.className = `message new ${type === 'broadcaster' ? 'broadcaster' : ''} ${type === 'sub' ? 'sub-alert' : ''}`;
+  msg.style.setProperty('--user-color', color.hex);
+  msg.style.setProperty('--user-rgb', color.rgb);
+
+  const badgeHTML = badge ? `<span class="badge">${badge}</span>` : '';
+
+  msg.innerHTML = `
+    <div class="avatar">${getInitials(username)}</div>
+    <div class="content">
+      <div class="username">${username}${badgeHTML}</div>
+      <div class="text">${text}</div>
+    </div>
+    <div class="timestamp">${formatTime()}</div>
+  `;
+
+  container.appendChild(msg);
+  msgCount++;
+  document.getElementById('msg-count').textContent = msgCount + ' msgs';
+
+  // Remove .new after animation
+  setTimeout(() => msg.classList.remove('new'), 800);
+
+  // Keep max 12 messages
+  const messages = container.querySelectorAll('.message');
+  if (messages.length > 12) {
+    messages[0].style.transition = 'opacity 0.4s';
+    messages[0].style.opacity = '0';
+    setTimeout(() => messages[0].remove(), 400);
+  }
+
+  // Auto-scroll
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Integración Twitch: elcotaaa ──
+const client = new tmi.Client({
+  channels: ['elcotaaa']
+});
+client.connect();
+client.on('message', (channel, tags, message, self) => {
+  addMessage({
+    username: tags['display-name'],
+    text: message,
+    badge: tags.mod ? 'MOD' : tags.subscriber ? 'SUB' : null,
+    type: tags['badges']?.broadcaster ? 'broadcaster' : 'normal'
+  });
+});
+</script>
+</body>
+</html>
